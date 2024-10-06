@@ -1,4 +1,11 @@
 <script lang="ts">
+	function getOreach(a: number, b: number, c: number, g: number) {
+		let p1 = 2 * (1 + Math.cos(g));
+		let p2 = 2 * (-b - a) * (1 + Math.cos(g));
+		let p3 = -Math.pow(c, 2) + Math.pow(a, 2) + Math.pow(b, 2) + 2 * Math.cos(g) * a * b;
+		return (-p2 - Math.pow(Math.pow(p2, 2) - 4 * p1 * p3, 0.5)) / (2 * p1);
+	}
+
 	let c = 95.7;
 	let b = 72.7;
 	let a = 54.7;
@@ -7,13 +14,27 @@
 	let gDeg = 120;
 
 	$: gamma = (gDeg / 180) * Math.PI;
+	$: cutoff = Math.tan((Math.PI - gamma) / 2) * w;
+
+	$: innerA = a - cutoff;
+	$: innerB = b - cutoff;
 
 	$: gAng = Math.PI + gamma;
-	$: dward = Math.sin(gAng) * b;
-	$: cosb = Math.cos(gAng) * b;
-	$: xLen = a + cosb;
+
+	$: angledOreach = getOreach(innerA, innerB, c, gAng);
+
+	$: corrOreach = Math.max(0, angledOreach);
+
+	$: cFitA = innerA - corrOreach;
+	$: cFitB = innerB - corrOreach;
+
+	$: dward = Math.sin(gAng) * cFitB;
+	$: cosb = Math.cos(gAng) * cFitB;
+	$: xLen = cFitA + cosb;
 
 	$: clen = Math.pow(Math.pow(xLen, 2) + Math.pow(dward, 2), 0.5);
+	// $: cOver = clen - c;
+
 	$: cRate = dward / clen;
 
 	$: beta = xLen > 0 ? -Math.asin(cRate) : Math.PI + Math.asin(cRate);
@@ -25,39 +46,24 @@
 	$: cb = Math.abs(Math.cos(alpha)) * b;
 	$: totalWidth = ca + cb;
 
-	$: oreach = (totalWidth - c) / 2;
+	$: betaR = beta + Math.PI / 2;
+	$: dshift = -Math.sin(betaR) * w + Math.sin(beta) * corrOreach;
+	$: horeach = Math.cos(betaR) * w - Math.cos(beta) * angledOreach;
 
-	$: dshiftL = Math.sin(beta - Math.PI / 2) * w;
-	$: lhShift = Math.cos(beta - Math.PI / 2) * w;
-	$: dshiftR = Math.sin(alpha - Math.PI / 2) * w;
-	$: rhShift = Math.cos(alpha - Math.PI / 2) * w;
-
-	$: innerReach = (innerWidth - c) / 2;
-	$: extraDshiftL = innerReach > 0 ? innerReach * Math.sin(alpha) : 0;
-	$: extraDshiftR = innerReach > 0 ? innerReach * Math.sin(beta) : 0;
-
-	$: dshift = dshiftL + extraDshiftL;
-
-	$: innerWidth = totalWidth - lhShift - rhShift;
-
-	$: cutoff = Math.tan((Math.PI - gamma) / 2) * w;
 	$: totalHeight = sa - dshift;
-	$: shiftSlope = dshiftR + extraDshiftR - dshiftL - extraDshiftL;
-	// $: grandRot = Math.atan(shiftSlope / innerWidth);
-	$: grandRot = 0;
 
 	const toDeg = (r: number) => (r * 180) / Math.PI;
 	const cutPath = (h: number, w: number, co1: number, co2: number) =>
 		`M 0 0 h ${w} l ${-co1} ${h} h -${w - co1 - co2} z`;
 </script>
 
-<container>
+<container style="--pw: {(totalWidth / 1200).toFixed(4)}px;">
 	<div class="controls">
 		<div>
 			<span>
 				angle: {gDeg}
 			</span>
-			<input type="range" min="20" max="179" bind:value={gDeg} />
+			<input type="range" min="40" max="179" bind:value={gDeg} />
 		</div>
 		<div>
 			<span> a: </span>
@@ -87,11 +93,15 @@
 		<span>
 			total (outer) width: {totalWidth.toFixed(3)}
 		</span>
+		<span>
+			overhang lenght: {angledOreach.toFixed(3)}
+		</span>
 	</div>
 
-	<svg viewBox="-50 -150 200 200" height="100%" width="100%">
+	<svg viewBox="{Math.min(0, horeach) * 1.2} -{totalHeight * 1.15} {totalWidth * 1.1} {totalHeight *
+			1.3}" height="100%" width="100%">
 		<rect height={w} width={c} />
-		<g transform="rotate({toDeg(grandRot)}) translate({-oreach}, {dshift}) ">
+		<g transform="translate({horeach}, {dshift}) ">
 			<g transform="rotate({toDeg(-beta)})">
 				<path d={cutPath(w, a, cutoff, 0)} />
 			</g>
@@ -107,13 +117,13 @@
 		display: flex;
 	}
 
-	.controls > div {
+	.controls>div {
 		display: flex;
 		flex-direction: column;
 		padding: 20px;
 	}
 
-	.stats > span {
+	.stats>span {
 		padding: 10px;
 	}
 
@@ -126,11 +136,8 @@
 
 	rect,
 	path {
-		fill: none;
-		/* border: 1px solid black; */
-		/* border-color: black; */
-		/* border-width: 1px; */
+		fill: #825b32;
 		stroke: black;
-		stroke-width: 0.2px;
+		stroke-width: var(--pw);
 	}
 </style>
